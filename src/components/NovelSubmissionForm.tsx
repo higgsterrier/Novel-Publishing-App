@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-// import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 export default function NovelSubmissionForm() {
   const [title, setTitle] = useState("");
-  //   const [synopsis, setSynopsis] = useState("");
-  //   const [content, setContent] = useState("");
+  const [synopsis, setSynopsis] = useState("");
+  const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
 
@@ -24,8 +24,7 @@ export default function NovelSubmissionForm() {
       const response = await fetch("/api/novels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // body: JSON.stringify({ title, synopsis, content }),
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, synopsis, content }),
       });
 
       if (response.ok) {
@@ -53,7 +52,7 @@ export default function NovelSubmissionForm() {
           required
         />
       </div>
-      {/* <div>
+      <div>
         <Label htmlFor="synopsis">Synopsis</Label>
         <Textarea
           id="synopsis"
@@ -71,7 +70,7 @@ export default function NovelSubmissionForm() {
           required
           className="min-h-[200px]"
         />
-      </div> */}
+      </div>
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
