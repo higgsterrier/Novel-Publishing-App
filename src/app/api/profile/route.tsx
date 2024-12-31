@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
-import { ObjectId } from "mongodb";
+import User from "@/models/User";
 
 export async function GET(request: Request) {
   try {
@@ -18,10 +18,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 });
     }
 
-    const { db } = await dbConnect();
-    const user = await db
-      .collection("users")
-      .findOne({ _id: new ObjectId(decoded.userId) });
+    await dbConnect();
+    const user = await User.findById(decoded.userId);
 
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
@@ -54,15 +52,10 @@ export async function PUT(request: Request) {
 
     const { name, email } = await request.json();
 
-    const { db } = await dbConnect();
-    const result = await db
-      .collection("users")
-      .updateOne(
-        { _id: new ObjectId(decoded.userId) },
-        { $set: { name, email } }
-      );
+    await dbConnect();
+    const result = await User.findByIdAndUpdate(decoded.userId, { name, email });
 
-    if (result.matchedCount === 0) {
+    if (!result) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 

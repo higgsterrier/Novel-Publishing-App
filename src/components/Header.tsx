@@ -36,14 +36,21 @@ export default function Header() {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (response.ok) {
-        const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.name) {
         setUserName(data.name);
       } else {
-        console.error("Failed to fetch user name:", await response.text());
+        throw new Error("No name in response");
       }
     } catch (error) {
       console.error("Failed to fetch user name:", error);
+      setIsLoggedIn(false);
+      localStorage.removeItem("userToken");
     }
   };
 
@@ -71,6 +78,12 @@ export default function Header() {
                 className="text-gray-600 hover:text-gray-800"
               >
                 Publish
+              </Link>
+              <Link
+                href="/my-works"
+                className="text-gray-600 hover:text-gray-800"
+              >
+                My Works
               </Link>
               <Link
                 href="/profile"
