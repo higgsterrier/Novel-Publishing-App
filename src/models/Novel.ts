@@ -36,6 +36,10 @@ export interface INovel {
     _id: string;
     name: string;
   };
+  ratings?: {
+    totalScore: number;
+    count: number;
+  };
   coverImage?: string;
   hasChapters: boolean;
   chapters?: IChapterInfo[];
@@ -72,6 +76,16 @@ if (mongoose.models && typeof window === 'undefined') {
           type: String,
           required: true,
         }
+      },
+      ratings: {
+        totalScore: {
+          type: Number,
+          default: 0,
+        },
+        count: {
+          type: Number,
+          default: 0,
+        },
       },
       genres: [{
         type: String,

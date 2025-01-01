@@ -6,6 +6,7 @@ import { INovel } from '@/models/Novel';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Rating } from '@/components/ui/Rating';
 
 interface Author {
   _id: string;
@@ -21,6 +22,8 @@ export default function NovelPage() {
   const [chapterContent, setChapterContent] = useState<{ title: string; content: string; chapterNumber: number } | null>(null);
   const [chapterLoading, setChapterLoading] = useState(false);
   const [chapterError, setChapterError] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRating, setUserRating] = useState<number | null>(null);
 
   const fetchChapter = useCallback(async (chapterNumber: number) => {
     if (!novel) {
@@ -85,6 +88,87 @@ export default function NovelPage() {
     }
   }, [novel, fetchChapter, chapterContent, chapterError]);
 
+  useEffect(() => {
+    const checkLoginStatus = () => {
+      const token = localStorage.getItem("userToken");
+      setIsLoggedIn(!!token);
+    };
+
+    checkLoginStatus();
+    window.addEventListener("storage", checkLoginStatus);
+
+    return () => {
+      window.removeEventListener("storage", checkLoginStatus);
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchUserRating = async () => {
+      const token = localStorage.getItem("userToken");
+      if (token) {
+        try {
+          const response = await fetch("/api/profile", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (response.ok) {
+            const userData = await response.json();
+            const rating = userData.ratedNovels?.find(
+              (r: { novelId: string }) => r.novelId === params.id
+            )?.rating;
+            setUserRating(rating || null);
+          }
+        } catch (error) {
+          console.error("Failed to fetch user rating:", error);
+        }
+      }
+    };
+
+    if (isLoggedIn && params.id) {
+      fetchUserRating();
+    }
+  }, [isLoggedIn, params.id]);
+
+  const handleRating = async (rating: number) => {
+    if (!isLoggedIn) return;
+
+    try {
+      const token = localStorage.getItem("userToken");
+      const response = await fetch(`/api/novels/${params.id}/rate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rating }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update rating");
+      }
+
+      const data = await response.json();
+      
+      // Update the novel's rating in the state
+      if (novel) {
+        setNovel({
+          ...novel,
+          ratings: {
+            totalScore: data.newRating.average * data.newRating.count,
+            count: data.newRating.count,
+          },
+        });
+      }
+      
+      // Update user's rating
+      setUserRating(rating);
+    } catch (error) {
+      console.error("Error updating rating:", error);
+      // You might want to show an error message to the user here
+    }
+  };
+
   const getAuthorName = (author: string | Author | { _id: string } | undefined): string => {
     if (!author) return 'Unknown Author';
     if (typeof author === 'string') return author;
@@ -140,12 +224,20 @@ export default function NovelPage() {
       <article className="prose prose-lg max-w-none">
         <h1 className="text-4xl font-bold mb-4">{novel?.title}</h1>
         
-        <div className="flex items-center gap-4 text-gray-600 mb-6">
-          <span>By {getAuthorName(novel?.author)}</span>
-          <span>·</span>
-          <span>{novel?.genres?.join(", ") || "No genres"}</span>
-          <span>·</span>
-          <span>{novel?.createdAt ? new Date(novel.createdAt).toLocaleDateString() : "No date"}</span>
+        <div className="flex justify-between items-center text-gray-600 mb-6">
+          <div className="flex items-center gap-2">
+            <span>{getAuthorName(novel?.author)}</span>
+            <span>·</span>
+            <span>{novel?.genres?.join(", ") || "No genres"}</span>
+            <span>·</span>
+            <span>{novel?.createdAt ? new Date(novel.createdAt).toLocaleDateString() : "No date"}</span>
+          </div>
+          <Rating 
+            initialRating={userRating || (novel.ratings?.totalScore ? novel.ratings.totalScore / novel.ratings.count : 0)}
+            totalRatings={novel.ratings?.count || 0}
+            onRate={handleRating}
+            readonly={!isLoggedIn}
+          />
         </div>
 
         <div className="bg-gray-50 p-6 rounded-lg mb-8">
@@ -155,7 +247,7 @@ export default function NovelPage() {
 
         <div className="prose max-w-none">
           {novel.hasChapters ? (
-            <>
+            <div>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-semibold">
                   {chapterLoading ? (
@@ -205,9 +297,9 @@ export default function NovelPage() {
               ) : (
                 <p className="text-gray-500 italic">No chapter content available</p>
               )}
-            </>
+            </div>
           ) : (
-            <>
+            <div>
               <h2 className="text-2xl font-semibold mb-4">Content</h2>
               {novel?.content && typeof novel.content === 'string' ? novel.content.split('\n').map((paragraph, index) => (
                 <p key={index} className="mb-1">
@@ -216,7 +308,7 @@ export default function NovelPage() {
               )) : (
                 <p className="text-gray-500 italic">No content available</p>
               )}
-            </>
+            </div>
           )}
         </div>
       </article>

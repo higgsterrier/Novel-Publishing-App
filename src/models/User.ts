@@ -15,6 +15,19 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, "Please provide a name"],
   },
+  ratedNovels: [
+    {
+      novelId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Novel",
+        required: true,
+      },
+      rating: {
+        type: Number,
+        required: true,
+      },
+    },
+  ],
 });
 
 UserSchema.pre("save", async function (next) {
