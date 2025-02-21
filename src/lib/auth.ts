@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
-import User from "../models/User";
+import User from "@/models/User";
 import bcrypt from "bcryptjs";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -28,7 +28,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const isPasswordValid = await comparePasswords(
+        const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         );
@@ -48,8 +48,22 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt"
   },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id;
+      }
+      return session;
+    }
+  },
   pages: {
-    signIn: "/login"
+    signIn: '/login'
   }
 };
 

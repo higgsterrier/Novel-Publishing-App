@@ -1,0 +1,88 @@
+[
+  {
+    "title": "The Crystal Prophecy",
+    "synopsis": "In a world where magic is fading, a young apprentice discovers an ancient crystal that could restore balance to the realm. But dark forces are also seeking its power.",
+    "genres": ["Fantasy", "Adventure"],
+    "author": {
+      "_id": "sample_author_1",
+      "name": "Elena Blackwood"
+    },
+    "hasChapters": true,
+    "chapters": [
+      { "title": "The Apprentice's Discovery", "chapterNumber": 1 },
+      { "title": "Shadows in the Crystal", "chapterNumber": 2 },
+      { "title": "The First Test", "chapterNumber": 3 }
+    ]
+  },
+  {
+    "title": "Quantum Horizons",
+    "synopsis": "A brilliant physicist discovers a way to travel between parallel universes, but each jump threatens to unravel the fabric of reality itself.",
+    "genres": ["Science Fiction", "Thriller"],
+    "author": {
+      "_id": "sample_author_2",
+      "name": "Dr. Marcus Chen"
+    },
+    "hasChapters": true,
+    "chapters": [
+      { "title": "The Discovery", "chapterNumber": 1 },
+      { "title": "First Jump", "chapterNumber": 2 },
+      { "title": "Ripple Effect", "chapterNumber": 3 }
+    ]
+  },
+  {
+    "title": "Whispers in the Shadows",
+    "synopsis": "Detective Sarah Morgan investigates a series of disappearances in a small town, uncovering a supernatural mystery that spans generations.",
+    "genres": ["Mystery", "Horror"],
+    "author": {
+      "_id": "sample_author_3",
+      "name": "James Crawford"
+    },
+    "hasChapters": true,
+    "chapters": [
+      { "title": "Missing", "chapterNumber": 1 },
+      { "title": "The Old House", "chapterNumber": 2 },
+      { "title": "Ancient Secrets", "chapterNumber": 3 }
+    ]
+  },
+  {
+    "title": "Love in the Digital Age",
+    "synopsis": "A modern romance about two people who meet through a glitched dating app that seems to have its own agenda for matchmaking.",
+    "genres": ["Romance", "Comedy"],
+    "author": {
+      "_id": "sample_author_4",
+      "name": "Sophie Martinez"
+    },
+    "hasChapters": false,
+    "content": "Chapter 1: The Match\n\nIt all started with a notification..."
+  },
+  {
+    "title": "The Last Kingdom of Sand",
+    "synopsis": "An epic tale of survival in a post-apocalyptic world where water is more precious than gold and ancient machines hold the key to humanity's future.",
+    "genres": ["Science Fiction", "Adventure"],
+    "author": {
+      "_id": "sample_author_5",
+      "name": "Ahmed Al-Rashid"
+    },
+    "hasChapters": true,
+    "chapters": [
+      { "title": "The Water Hunters", "chapterNumber": 1 },
+      { "title": "Desert Storms", "chapterNumber": 2 },
+      { "title": "The Ancient Machine", "chapterNumber": 3 }
+    ]
+  },
+  {
+    "title": "Chronicles of the Forgotten",
+    "synopsis": "A young historian uncovers a hidden society of immortals living among us, each with centuries of stories to tell.",
+    "genres": ["Fantasy", "Historical Fiction"],
+    "author": {
+      "_id": "sample_author_6",
+      "name": "Isabella Romano"
+    },
+    "hasChapters": true,
+    "chapters": [
+      { "title": "The Archive", "chapterNumber": 1 },
+      { "title": "Immortal Tales", "chapterNumber": 2 },
+      { "title": "Living History", "chapterNumber": 3 }
+    ]
+  }
+]

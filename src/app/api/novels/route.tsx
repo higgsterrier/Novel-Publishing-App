@@ -43,10 +43,7 @@ export async function POST(request: NextRequest) {
         synopsis,
         genres,
         hasChapters,
-        author: {
-          _id: user._id,
-          name: user.name
-        }
+        author: user._id
       };
 
       // Only include content if not using chapters and content is provided

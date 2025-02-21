@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 export default function ProfilePage() {
   const [name, setName] = useState("");
@@ -17,21 +18,21 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const router = useRouter();
+  const { status } = useSession();
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const token = localStorage.getItem("userToken");
-      if (!token) {
+      if (status === "unauthenticated") {
         router.push("/login");
         return;
       }
 
+      if (status === "loading") {
+        return;
+      }
+
       try {
-        const response = await fetch("/api/profile", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch("/api/profile");
         if (response.ok) {
           const data = await response.json();
           setName(data.name);
@@ -45,15 +46,14 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [router]);
+  }, [router, status]);
 
   const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     setMessage("");
 
-    const token = localStorage.getItem("userToken");
-    if (!token) {
+    if (status === "unauthenticated") {
       router.push("/login");
       return;
     }
@@ -63,7 +63,6 @@ export default function ProfilePage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ name, email }),
       });
@@ -88,8 +87,7 @@ export default function ProfilePage() {
       return;
     }
 
-    const token = localStorage.getItem("userToken");
-    if (!token) {
+    if (status === "unauthenticated") {
       router.push("/login");
       return;
     }
@@ -99,7 +97,6 @@ export default function ProfilePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ currentPassword, newPassword }),
       });

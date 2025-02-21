@@ -134,7 +134,7 @@ export default function NovelsPage() {
             <CardHeader>
               <CardTitle>{novel.title}</CardTitle>
               <CardDescription>
-                By {getAuthorName(novel.author)} · {novel.genres.join(", ")}
+                By {getAuthorName(novel.author)} · {novel.genres?.join(", ") || "No genres"}
               </CardDescription>
             </CardHeader>
             <CardContent>

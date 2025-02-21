@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,21 +20,17 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem("userToken", data.token);
-        // Dispatch a custom event to notify the header
-        window.dispatchEvent(new Event("storage"));
-        router.push("/");
+      if (result?.error) {
+        setError(result.error);
       } else {
-        setError(data.message || "Login failed");
+        router.push("/");
+        router.refresh();
       }
     } catch (err) {
       setError(`An error: ${err} occurred. Please try again.`);
@@ -43,6 +40,13 @@ export default function LoginPage() {
   return (
     <div className="max-w-md mx-auto mt-8">
       <h1 className="text-2xl font-bold mb-4">Login</h1>
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="email">Email</Label>
@@ -64,13 +68,6 @@ export default function LoginPage() {
             required
           />
         </div>
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
         <Button type="submit" className="w-full">
           Login
         </Button>

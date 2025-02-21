@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
-import Novel from "@/models/Novel";
-import { protect } from "@/lib/auth";
+import Novel, { INovel } from "@/models/Novel";
+import mongoose from "mongoose";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 interface Chapter {
   _id?: string;
   title: string;
   chapterNumber: number;
   content: string;
+}
+
+interface PopulatedAuthor {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+}
+
+// Interface for serialized novel (with string IDs instead of ObjectIds)
+interface SerializedNovel extends Omit<INovel, '_id' | 'author'> {
+  _id: string;
+  author: {
+    _id: string;
+    name: string;
+  };
 }
 
 export async function GET(
@@ -17,7 +33,7 @@ export async function GET(
   try {
     await dbConnect();
     const novel = await Novel.findById(params.id)
-      .populate("author", "name")
+      .populate<{ author: PopulatedAuthor }>("author", "name")
       .lean();
 
     if (!novel) {
@@ -27,14 +43,24 @@ export async function GET(
       );
     }
 
-    if (novel.hasChapters && novel.chapters) {
-      novel.chapters = novel.chapters.map((chapter: Chapter) => ({
+    // Convert MongoDB ObjectIds to strings for proper JSON serialization
+    const novelObj: SerializedNovel = {
+      ...novel,
+      _id: novel._id.toString(),
+      author: novel.author ? {
+        _id: novel.author._id.toString(),
+        name: novel.author.name
+      } : { _id: '', name: 'Unknown Author' }
+    };
+
+    if (novelObj.hasChapters && novelObj.chapters) {
+      novelObj.chapters = novelObj.chapters.map((chapter: Chapter) => ({
         ...chapter,
         _id: chapter._id?.toString() || chapter._id
       }));
     }
 
-    return NextResponse.json(novel);
+    return NextResponse.json(novelObj);
   } catch (error) {
     console.error("Error fetching novel:", error);
     return NextResponse.json(
@@ -51,13 +77,16 @@ export async function PUT(
   try {
     await dbConnect();
 
-    // Verify user authentication and get user data
-    const user = await protect(request);
-    if (user instanceof NextResponse) {
-      return user; // Return error response if authentication fails
+    // Get the session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
     }
 
-    // Find the novel and verify ownership
+    // Find the novel
     const novel = await Novel.findById(params.id);
     if (!novel) {
       return NextResponse.json(
@@ -67,7 +96,7 @@ export async function PUT(
     }
 
     // Check if the user is the author of the novel
-    if (novel.author._id.toString() !== user._id.toString()) {
+    if (!novel.author || novel.author.toString() !== session.user.id) {
       return NextResponse.json(
         { error: "Not authorized to edit this novel" },
         { status: 403 }
@@ -76,48 +105,48 @@ export async function PUT(
 
     // Get the update data from request body
     const body = await request.json();
-    const { title, synopsis, content, genres, hasChapters, chapters } = body;
 
-    // Validate required fields
-    if (!title || !synopsis || !genres || genres.length === 0) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
+    console.log('Received update data:', body);
 
-    // Validate content based on hasChapters
-    if (!hasChapters && (!content || content.trim().length === 0)) {
-      return NextResponse.json(
-        { error: "Content is required for non-chaptered novels" },
-        { status: 400 }
-      );
-    }
-
-    if (hasChapters && (!chapters || chapters.length === 0)) {
-      return NextResponse.json(
-        { error: "At least one chapter is required" },
-        { status: 400 }
-      );
-    }
-
-    // Update the novel
+    // Prepare update data
     const updateData = {
-      title,
-      synopsis,
-      genres,
-      hasChapters,
-      updatedAt: new Date(),
-      ...(hasChapters ? { chapters, content: undefined } : { content, chapters: [] })
+      title: body.title,
+      synopsis: body.synopsis,
+      genres: body.genres,
+      hasChapters: body.hasChapters,
+      ...(body.hasChapters 
+        ? { chapters: body.chapters, content: undefined }
+        : { content: body.content, chapters: [] }
+      )
     };
 
+    console.log('Updated data:', updateData);
+
+    // Update the novel
     const updatedNovel = await Novel.findByIdAndUpdate(
       params.id,
       updateData,
       { new: true, runValidators: true }
-    );
+    ).populate("author", "name");
 
-    return NextResponse.json(updatedNovel);
+    if (!updatedNovel) {
+      return NextResponse.json(
+        { error: "Failed to update novel" },
+        { status: 400 }
+      );
+    }
+
+    // Convert ObjectIds to strings for serialization
+    const serializedNovel = {
+      ...updatedNovel.toObject(),
+      _id: updatedNovel._id.toString(),
+      author: {
+        _id: updatedNovel.author._id.toString(),
+        name: updatedNovel.author.name
+      }
+    };
+
+    return NextResponse.json(serializedNovel);
   } catch (error) {
     console.error("Error updating novel:", error);
     return NextResponse.json(
@@ -134,13 +163,16 @@ export async function DELETE(
   try {
     await dbConnect();
 
-    // Verify user authentication and get user data
-    const user = await protect(request);
-    if (user instanceof NextResponse) {
-      return user; // Return error response if authentication fails
+    // Get the session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
     }
 
-    // Find the novel and verify ownership
+    // Find the novel
     const novel = await Novel.findById(params.id);
     if (!novel) {
       return NextResponse.json(
@@ -150,14 +182,13 @@ export async function DELETE(
     }
 
     // Check if the user is the author of the novel
-    if (novel.author._id.toString() !== user._id.toString()) {
+    if (novel.author.toString() !== session.user.id) {
       return NextResponse.json(
         { error: "Not authorized to delete this novel" },
         { status: 403 }
       );
     }
 
-    // Delete the novel
     await Novel.findByIdAndDelete(params.id);
 
     return NextResponse.json({ message: "Novel deleted successfully" });

@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import Novel from "@/models/Novel";
 import User from "@/models/User";
-import { getToken } from "next-auth/jwt";
-import { Types } from "mongoose";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = await getToken({ req });
-    if (!token) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -28,7 +28,14 @@ export async function POST(
 
     await dbConnect();
 
-    // Get the novel and update its ratings
+    const user = await User.findOne({ email: session.user.email });
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
     const novel = await Novel.findById(params.id);
     if (!novel) {
       return NextResponse.json(
@@ -37,68 +44,37 @@ export async function POST(
       );
     }
 
-    // Find the user and check if they've already rated this novel
-    const user = await User.findById(token.sub);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    // Find existing rating by this user for this novel
-    const existingRating = user.ratedNovels.find(
-      (r: { novelId: { toString: () => string; }; }) => r.novelId.toString() === params.id
+    // Find existing rating
+    const existingRatingIndex = novel.ratings.findIndex(
+      (r) => r.userId.toString() === user._id.toString()
     );
 
-    if (existingRating) {// Initialize ratings if they don't exist
-    if (!novel.ratings) {
-      novel.ratings = { totalScore: 0, count: 0 };
-    }
-    
-    if (existingRating) {
+    if (existingRatingIndex > -1) {
       // Update existing rating
-      const oldRating = existingRating.rating;
-      existingRating.rating = rating;
-    
-      // Update novel's total score
-      novel.ratings.totalScore = novel.ratings.totalScore - oldRating + rating;
-    } else {
-      // Rest of the code remains the same...
-    }
-      // Update existing rating
-      const oldRating = existingRating.rating;
-      existingRating.rating = rating;
-
-      // Update novel's total score
-      novel.ratings.totalScore = novel.ratings.totalScore - oldRating + rating;
+      novel.ratings[existingRatingIndex].rating = rating;
     } else {
       // Add new rating
-      user.ratedNovels.push({
-        novelId: new Types.ObjectId(params.id),
+      novel.ratings.push({
+        userId: user._id,
         rating: rating,
       });
-
-      // Update novel's ratings
-      novel.ratings = novel.ratings || { totalScore: 0, count: 0 };
-      novel.ratings.totalScore = (novel.ratings.totalScore || 0) + rating;
-      novel.ratings.count = (novel.ratings.count || 0) + 1;
     }
 
-    // Save both documents
-    await Promise.all([novel.save(), user.save()]);
+    // Calculate average rating
+    const totalRating = novel.ratings.reduce((acc, curr) => acc + curr.rating, 0);
+    novel.averageRating = totalRating / novel.ratings.length;
+
+    await novel.save();
 
     return NextResponse.json({
       message: "Rating updated successfully",
-      newRating: {
-        average: novel.ratings.totalScore / novel.ratings.count,
-        count: novel.ratings.count,
-      },
+      averageRating: novel.averageRating,
+      userRating: rating,
     });
   } catch (error) {
-    console.error("Error updating rating:", error);
+    console.error("Rating error:", error);
     return NextResponse.json(
-      { error: "Failed to update rating" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

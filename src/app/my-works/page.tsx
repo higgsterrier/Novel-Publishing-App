@@ -6,34 +6,40 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { INovel } from '@/models/Novel';
 import { Pencil, Trash2 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+
+// Type for serialized novel data in the frontend
+type SerializedNovel = Omit<INovel, '_id' | 'author'> & {
+  _id: string;
+  author: string;
+};
 
 export default function MyWorksPage() {
-  const [novels, setNovels] = useState<INovel[]>([]);
+  const [novels, setNovels] = useState<SerializedNovel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { data: session, status } = useSession();
 
   useEffect(() => {
     const fetchMyNovels = async () => {
-      const token = localStorage.getItem('userToken');
-      if (!token) {
+      if (status === "unauthenticated") {
         router.push('/login');
         return;
       }
 
+      if (status === "loading") {
+        return;
+      }
+
       try {
-        const response = await fetch('/api/my-works', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch('/api/my-works');
 
         if (!response.ok) {
           throw new Error('Failed to fetch novels');
         }
 
         const data = await response.json();
-        console.log('Fetched novels:', data); // Debug log
         setNovels(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
@@ -43,25 +49,21 @@ export default function MyWorksPage() {
     };
 
     fetchMyNovels();
-  }, [router]);
+  }, [router, status, session]);
 
   const handleDelete = async (novelId: string) => {
     if (!confirm('Are you sure you want to delete this novel?')) {
       return;
     }
 
-    const token = localStorage.getItem('userToken');
-    if (!token) {
+    if (status === "unauthenticated") {
       router.push('/login');
       return;
     }
 
     try {
       const response = await fetch(`/api/novels/${novelId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        method: 'DELETE'
       });
 
       if (!response.ok) {
@@ -124,7 +126,7 @@ export default function MyWorksPage() {
                   </Link>
                 </h2>
                 <p className="text-gray-600 mb-2">
-                  {novel?.genres?.join(', ') || 'No genres'}
+                  {novel.genres?.join(", ") || 'No genre'}
                 </p>
                 <p className="text-sm text-gray-500">
                   Published on {new Date(novel.createdAt).toLocaleDateString()}

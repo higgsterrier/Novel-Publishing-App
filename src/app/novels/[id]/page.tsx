@@ -7,22 +7,26 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Rating } from '@/components/ui/Rating';
+import { useSession } from 'next-auth/react';
 
-interface Author {
+type SerializedNovel = Omit<INovel, '_id' | 'author'> & {
   _id: string;
-  name: string;
-}
+  author: {
+    _id: string;
+    name: string;
+  };
+};
 
 export default function NovelPage() {
+  const { data: session } = useSession();
   const params = useParams();
-  const [novel, setNovel] = useState<INovel | null>(null);
+  const [novel, setNovel] = useState<SerializedNovel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentChapter, setCurrentChapter] = useState(1);
   const [chapterContent, setChapterContent] = useState<{ title: string; content: string; chapterNumber: number } | null>(null);
   const [chapterLoading, setChapterLoading] = useState(false);
   const [chapterError, setChapterError] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
 
   const fetchChapter = useCallback(async (chapterNumber: number) => {
@@ -89,29 +93,10 @@ export default function NovelPage() {
   }, [novel, fetchChapter, chapterContent, chapterError]);
 
   useEffect(() => {
-    const checkLoginStatus = () => {
-      const token = localStorage.getItem("userToken");
-      setIsLoggedIn(!!token);
-    };
-
-    checkLoginStatus();
-    window.addEventListener("storage", checkLoginStatus);
-
-    return () => {
-      window.removeEventListener("storage", checkLoginStatus);
-    };
-  }, []);
-
-  useEffect(() => {
     const fetchUserRating = async () => {
-      const token = localStorage.getItem("userToken");
-      if (token) {
+      if (session?.user) {
         try {
-          const response = await fetch("/api/profile", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const response = await fetch("/api/profile");
           if (response.ok) {
             const userData = await response.json();
             const rating = userData.ratedNovels?.find(
@@ -125,21 +110,19 @@ export default function NovelPage() {
       }
     };
 
-    if (isLoggedIn && params.id) {
+    if (session?.user && params.id) {
       fetchUserRating();
     }
-  }, [isLoggedIn, params.id]);
+  }, [session, params.id]);
 
   const handleRating = async (rating: number) => {
-    if (!isLoggedIn) return;
+    if (!session?.user) return;
 
     try {
-      const token = localStorage.getItem("userToken");
       const response = await fetch(`/api/novels/${params.id}/rate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ rating }),
       });
@@ -149,31 +132,28 @@ export default function NovelPage() {
       }
 
       const data = await response.json();
-      
-      // Update the novel's rating in the state
-      if (novel) {
+      // Update the novel's rating in the UI
+      if (novel && data.newRating) {
         setNovel({
           ...novel,
-          ratings: {
-            totalScore: data.newRating.average * data.newRating.count,
-            count: data.newRating.count,
-          },
+          averageRating: data.newRating.average,
+          ratings: novel.ratings.map(r => 
+            r.userId.toString() === session?.user?.id 
+              ? { ...r, rating: rating }
+              : r
+          )
         });
+        setUserRating(rating);
       }
-      
-      // Update user's rating
-      setUserRating(rating);
     } catch (error) {
       console.error("Error updating rating:", error);
-      // You might want to show an error message to the user here
+      throw error;
     }
   };
 
-  const getAuthorName = (author: string | Author | { _id: string } | undefined): string => {
+  const getAuthorName = (author: SerializedNovel['author'] | undefined): string => {
     if (!author) return 'Unknown Author';
-    if (typeof author === 'string') return author;
-    if ('name' in author) return author.name;
-    return 'Unknown Author';
+    return author.name || 'Unknown Author';
   };
 
   if (loading) {
@@ -236,7 +216,7 @@ export default function NovelPage() {
             initialRating={userRating || (novel.ratings?.totalScore ? novel.ratings.totalScore / novel.ratings.count : 0)}
             totalRatings={novel.ratings?.count || 0}
             onRate={handleRating}
-            readonly={!isLoggedIn}
+            readonly={!session?.user}
           />
         </div>
 

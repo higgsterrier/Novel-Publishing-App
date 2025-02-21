@@ -1,113 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useSession, signOut } from "next-auth/react";
 
 export default function Header() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("");
+  const { data: session, status } = useSession();
   const pathname = usePathname();
 
-  useEffect(() => {
-    const checkLoginStatus = () => {
-      const token = localStorage.getItem("userToken");
-      setIsLoggedIn(!!token);
-      if (token) {
-        fetchUserName(token);
-      } else {
-        setUserName("");
-      }
-    };
-
-    checkLoginStatus();
-    window.addEventListener("storage", checkLoginStatus);
-
-    return () => {
-      window.removeEventListener("storage", checkLoginStatus);
-    };
-  }, [pathname]);
-
-  const fetchUserName = async (token: string) => {
-    try {
-      const response = await fetch("/api/profile", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.name) {
-        setUserName(data.name);
-      } else {
-        throw new Error("No name in response");
-      }
-    } catch (error) {
-      console.error("Failed to fetch user name:", error);
-      setIsLoggedIn(false);
-      localStorage.removeItem("userToken");
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("userToken");
-    setIsLoggedIn(false);
-    setUserName("");
-    window.location.href = "/";
-  };
-
   return (
-    <header className="bg-white shadow-sm">
+    <header className="bg-gray-800 text-white">
       <nav className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <Link href="/" className="text-xl font-bold text-gray-800">
-          NovelNest
-        </Link>
-        <div className="space-x-4 flex items-center">
-          <Link href="/novels" className="text-gray-600 hover:text-gray-800">
+        <div className="flex items-center space-x-4">
+          <Link href="/" className="text-xl font-bold">
+            NovelNest
+          </Link>
+          <Link
+            href="/novels"
+            className={pathname === "/novels" ? "text-blue-400" : ""}
+          >
             Browse
           </Link>
-          {isLoggedIn ? (
+          {session && (
             <>
               <Link
-                href="/novels/publish"
-                className="text-gray-600 hover:text-gray-800"
-              >
-                Publish
-              </Link>
-              <Link
                 href="/my-works"
-                className="text-gray-600 hover:text-gray-800"
+                className={pathname === "/my-works" ? "text-blue-400" : ""}
               >
                 My Works
               </Link>
               <Link
                 href="/profile"
-                className="text-gray-600 hover:text-gray-800"
+                className={pathname === "/profile" ? "text-blue-400" : ""}
               >
                 Profile
               </Link>
-              <span className="text-gray-600">
-                Welcome, {userName || "User"}
-              </span>
-              <Button onClick={handleLogout} variant="ghost">
-                Logout
+            </>
+          )}
+        </div>
+        <div className="flex items-center space-x-4">
+          {status === 'loading' ? (
+            <span>Loading...</span>
+          ) : session ? (
+            <>
+              <span>Welcome, {session.user?.name}</span>
+              <Button
+                variant="outline"
+                onClick={() => signOut({ callbackUrl: "/" })}
+              >
+                Sign Out
               </Button>
             </>
           ) : (
             <>
-              <Link
-                href="/register"
-                className="text-gray-600 hover:text-gray-800"
-              >
-                Register
+              <Link href="/login">
+                <Button variant="outline">Sign In</Button>
               </Link>
-              <Link href="/login" className="text-gray-600 hover:text-gray-800">
-                Login
+              <Link href="/register">
+                <Button>Sign Up</Button>
               </Link>
             </>
           )}

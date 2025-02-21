@@ -1,32 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { dbConnect } from "@/lib/db";
-import { Types } from "mongoose";
 import Novel from "@/models/Novel";
+import User from "@/models/User"; // Added import statement for User model
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Verify authentication
-    const token = request.headers.get("authorization")?.split(" ")[1];
-    if (!token) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 });
-    }
+    const session = await getServerSession(authOptions);
 
-    const decodedToken = await verifyToken(token);
-    if (!decodedToken) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     // Connect to database
     await dbConnect();
 
     // Find all novels by the user
-    const userId = new Types.ObjectId(decodedToken.userId);
+    const user = await User.findOne({ email: session.user.email });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     const query = {
-      $or: [
-        { author: userId },  // Old format
-        { "author._id": userId }  // New format
-      ]
+      author: user._id
     };
     console.log('Query:', query); // Debug log
     
@@ -35,7 +32,15 @@ export async function GET(request: NextRequest) {
       .lean();
 
     console.log('Found novels:', novels); // Debug log
-    return NextResponse.json(novels);
+
+    // Serialize the novels before sending to frontend
+    const serializedNovels = novels.map(novel => ({
+      ...novel,
+      _id: novel._id.toString(),
+      author: novel.author.toString()
+    }));
+
+    return NextResponse.json(serializedNovels);
   } catch (error) {
     console.error("Error in GET /api/my-works:", error);
     return NextResponse.json(

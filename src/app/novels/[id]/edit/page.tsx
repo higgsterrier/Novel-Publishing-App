@@ -9,6 +9,7 @@ import { NOVEL_GENRES, NovelGenre } from '@/models/Novel';
 import { IChapter } from '@/models/Chapter';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 
 interface INewChapter {
   title: string;
@@ -19,6 +20,13 @@ interface INewChapter {
 export default function EditNovelPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push('/login');
+    },
+  });
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<{
@@ -28,6 +36,7 @@ export default function EditNovelPage() {
     genres: NovelGenre[];
     hasChapters: boolean;
     chapters: (IChapter | INewChapter)[];
+    author?: string;
   }>({
     title: '',
     synopsis: '',
@@ -37,20 +46,14 @@ export default function EditNovelPage() {
     chapters: []
   });
 
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
   useEffect(() => {
     const fetchNovel = async () => {
-      const token = localStorage.getItem('userToken');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
+      if (!session?.user || initialLoadDone) return;
 
       try {
-        const response = await fetch(`/api/novels/${params.id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch(`/api/novels/${params.id}`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch novel');
@@ -58,17 +61,15 @@ export default function EditNovelPage() {
 
         const novel = await response.json();
         setFormData({
-          title: novel.title || '',
-          synopsis: novel.synopsis || '',
+          title: novel.title,
+          synopsis: novel.synopsis,
           content: novel.content || '',
-          genres: novel.genres || [],
-          hasChapters: novel.hasChapters || false,
-          chapters: novel.chapters?.map((chapter: IChapter) => ({
-            title: chapter.title || '',
-            content: chapter.content || '',
-            chapterNumber: chapter.chapterNumber
-          })) || []
+          genres: novel.genres,
+          hasChapters: novel.hasChapters,
+          chapters: novel.chapters || [],
+          author: novel.author._id
         });
+        setInitialLoadDone(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch novel');
       } finally {
@@ -77,12 +78,12 @@ export default function EditNovelPage() {
     };
 
     fetchNovel();
-  }, [params.id, router]);
+  }, [initialLoadDone, params.id, router, session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('userToken');
-    if (!token) {
+    
+    if (!session?.user) {
       router.push('/login');
       return;
     }
@@ -91,14 +92,14 @@ export default function EditNovelPage() {
       const response = await fetch(`/api/novels/${params.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formData)
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update novel');
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update novel');
       }
 
       router.push(`/novels/${params.id}`);
@@ -151,27 +152,6 @@ export default function EditNovelPage() {
     }));
   };
 
-  const handleContentFormatChange = (useChapters: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      hasChapters: useChapters,
-      chapters: useChapters 
-        ? (prev.chapters.length 
-          ? prev.chapters 
-          : [{
-              _id: '', // This will be set by the backend
-              novelId: '', // This will be set by the backend
-              title: '',
-              content: prev.content || '',
-              chapterNumber: 1,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }]) 
-        : [],
-      content: useChapters ? '' : (prev.chapters[0]?.content || prev.content || '')
-    }));
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[50vh]">
@@ -180,29 +160,22 @@ export default function EditNovelPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-red-500">{error}</p>
-        <Button onClick={() => window.location.reload()} className="mt-4">
-          Try Again
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <Link href={`/novels/${params.id}`}>
-          <Button variant="outline">
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Novel
-          </Button>
+        <Link href={`/novels/${params.id}`} className="inline-flex items-center text-gray-600 hover:text-gray-900">
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Back to Novel
         </Link>
       </div>
 
       <h1 className="text-3xl font-bold mb-8">Edit Novel</h1>
+
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+          <p className="text-red-700">{error}</p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
@@ -251,48 +224,66 @@ export default function EditNovelPage() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Content Format
+            Content Type
           </label>
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center space-x-2">
+          <div className="flex gap-4">
+            <label className="flex items-center">
               <input
                 type="radio"
                 checked={!formData.hasChapters}
-                onChange={() => handleContentFormatChange(false)}
-                className="form-radio"
+                onChange={() => setFormData({ ...formData, hasChapters: false })}
+                className="mr-2"
               />
-              <span>Single Content</span>
+              Single Content
             </label>
-            <label className="flex items-center space-x-2">
+            <label className="flex items-center">
               <input
                 type="radio"
                 checked={formData.hasChapters}
-                onChange={() => handleContentFormatChange(true)}
-                className="form-radio"
+                onChange={() => setFormData({ ...formData, hasChapters: true })}
+                className="mr-2"
               />
-              <span>Chapters</span>
+              Chapters
             </label>
           </div>
         </div>
 
-        {formData.hasChapters ? (
+        {!formData.hasChapters ? (
+          <div>
+            <label htmlFor="content" className="block text-sm font-medium text-gray-700">
+              Content
+            </label>
+            <Textarea
+              id="content"
+              value={formData.content}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              required={!formData.hasChapters}
+              className="min-h-[300px]"
+            />
+          </div>
+        ) : (
           <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Chapters</h3>
+              <Button type="button" onClick={addChapter}>
+                Add Chapter
+              </Button>
+            </div>
             {formData.chapters.map((chapter, index) => (
-              <div key={index} className="p-4 border rounded-lg space-y-4">
+              <div key={index} className="border rounded-lg p-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Chapter {chapter.chapterNumber}</h3>
+                  <h4 className="text-md font-medium">Chapter {chapter.chapterNumber}</h4>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="destructive"
                     onClick={() => removeChapter(index)}
-                    className="text-red-600 hover:text-red-700"
                   >
-                    Remove Chapter
+                    Remove
                   </Button>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Chapter Title
+                    Title
                   </label>
                   <Input
                     value={chapter.title}
@@ -302,7 +293,7 @@ export default function EditNovelPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Chapter Content
+                    Content
                   </label>
                   <Textarea
                     value={chapter.content}
@@ -313,36 +304,10 @@ export default function EditNovelPage() {
                 </div>
               </div>
             ))}
-            <Button
-              type="button"
-              onClick={addChapter}
-              variant="outline"
-              className="w-full"
-            >
-              Add Chapter
-            </Button>
-          </div>
-        ) : (
-          <div>
-            <label htmlFor="content" className="block text-sm font-medium text-gray-700">
-              Content
-            </label>
-            <Textarea
-              id="content"
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              required={!formData.hasChapters}
-              className="min-h-[400px]"
-            />
           </div>
         )}
 
-        <div className="flex justify-end space-x-4">
-          <Link href={`/novels/${params.id}`}>
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          </Link>
+        <div className="flex justify-end">
           <Button type="submit">
             Save Changes
           </Button>
