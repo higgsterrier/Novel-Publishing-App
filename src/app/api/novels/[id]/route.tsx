@@ -17,8 +17,12 @@ interface PopulatedAuthor {
   name: string;
 }
 
+interface PopulatedNovel extends Omit<INovel, 'author'> {
+  author: PopulatedAuthor;
+}
+
 // Interface for serialized novel (with string IDs instead of ObjectIds)
-interface SerializedNovel extends Omit<INovel, '_id' | 'author'> {
+interface SerializedNovel extends Omit<PopulatedNovel, '_id' | 'author'> {
   _id: string;
   author: {
     _id: string;
@@ -34,7 +38,7 @@ export async function GET(
     await dbConnect();
     const novel = await Novel.findById(params.id)
       .populate<{ author: PopulatedAuthor }>("author", "name")
-      .lean();
+      .lean() as PopulatedNovel;
 
     if (!novel) {
       return NextResponse.json(
@@ -127,7 +131,7 @@ export async function PUT(
       params.id,
       updateData,
       { new: true, runValidators: true }
-    ).populate("author", "name");
+    ).populate("author", "name") as PopulatedNovel | null;
 
     if (!updatedNovel) {
       return NextResponse.json(
@@ -137,8 +141,8 @@ export async function PUT(
     }
 
     // Convert ObjectIds to strings for serialization
-    const serializedNovel = {
-      ...updatedNovel.toObject(),
+    const serializedNovel: SerializedNovel = {
+      ...updatedNovel,
       _id: updatedNovel._id.toString(),
       author: {
         _id: updatedNovel.author._id.toString(),

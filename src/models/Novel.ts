@@ -33,10 +33,10 @@ export interface IRating {
 
 export interface INovel {
   _id: mongoose.Types.ObjectId;
+  author: mongoose.Types.ObjectId;
   title: string;
   synopsis: string;
   content: string;
-  author: mongoose.Types.ObjectId;
   genres: NovelGenre[];
   status: "ongoing" | "completed" | "hiatus";
   coverImage?: string;
@@ -59,9 +59,10 @@ if (mongoose.models && typeof window === 'undefined') {
 
   const novelSchema = new mongoose.Schema<INovel>(
     {
-      title: { type: String, required: true },
       author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      title: { type: String, required: true },
       synopsis: { type: String, required: true },
+      content: { type: String, required: true },
       genres: { type: [String], enum: NOVEL_GENRES, required: true },
       status: {
         type: String,
